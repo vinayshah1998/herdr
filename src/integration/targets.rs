@@ -21,8 +21,8 @@ use super::config_edit::{
 };
 use super::env::{
     antigravity_cli_dir, claude_dir, codex_dir, copilot_dir, cursor_dir, devin_dir, droid_dir,
-    grok_dir, hermes_dir, hermes_plugin_dir, kilo_dir, kimi_dir, mastracode_dir, omp_extension_dir,
-    opencode_dir, pi_extension_dir, qodercli_dir, qwen_dir,
+    grok_dir, hermes_dir, hermes_plugin_dir, kilo_dir, kimi_dir, kiro_dir, mastracode_dir,
+    omp_extension_dir, opencode_dir, pi_extension_dir, qodercli_dir, qwen_dir,
 };
 use super::file_ops::{
     make_executable, remove_dir_all_if_exists, remove_file_if_exists, remove_legacy_bash_hook_file,
@@ -41,6 +41,7 @@ use super::types::{
     OpenCodeUninstallResult, PiUninstallResult, QodercliInstallPaths, QodercliUninstallResult,
     QwenInstallPaths, QwenUninstallResult,
 };
+use super::types::{KiroInstallPaths, KiroUninstallResult};
 use super::{
     ANTIGRAVITY_CLI_HOOK_ASSET, ANTIGRAVITY_CLI_HOOK_BLOCK_NAME, ANTIGRAVITY_CLI_HOOK_EVENTS,
     ANTIGRAVITY_CLI_HOOK_INSTALL_NAME, ANTIGRAVITY_CLI_HOOK_TIMEOUT_SEC, CLAUDE_HOOK_ASSET,
@@ -60,6 +61,7 @@ use super::{
     QODERCLI_HOOK_EVENTS, QODERCLI_HOOK_INSTALL_NAME, QODERCLI_REMOVED_LIFECYCLE_HOOK_EVENTS,
     QWEN_HOOK_ASSET, QWEN_HOOK_EVENTS, QWEN_HOOK_INSTALL_NAME,
 };
+use super::{KIRO_HOOK_ASSET, KIRO_HOOK_CONFIG_INSTALL_NAME, KIRO_HOOK_INSTALL_NAME};
 
 fn ensure_extension_dir(dir: &Path, agent: &str) -> io::Result<()> {
     if dir.is_dir() {
@@ -1482,6 +1484,100 @@ pub(crate) fn uninstall_grok() -> io::Result<GrokUninstallResult> {
     let removed_hook_file = remove_file_if_exists(&hook_path)?;
 
     Ok(GrokUninstallResult {
+        hook_path,
+        config_path,
+        removed_hook_file,
+        removed_config_file,
+    })
+}
+
+/// The complete Herdr-owned Kiro hook config. Installation and status share
+/// this value so any config drift is reported as outdated.
+fn kiro_hook_command(hook_path: &Path) -> String {
+    #[cfg(windows)]
+    {
+        hook_command(hook_path, Some("session"))
+    }
+    #[cfg(not(windows))]
+    {
+        format!(
+            "sh {} session",
+            shell_single_quote(&hook_path.display().to_string())
+        )
+    }
+}
+
+pub(crate) fn kiro_hook_config(hook_path: &Path) -> Value {
+    let session_command = kiro_hook_command(hook_path);
+    // Kiro's hook file is a flat `v1` list keyed by trigger. Both SessionStart
+    // and Stop carry the session id, so herdr registers one command entry for
+    // each; the same script reports on either trigger.
+    json!({
+        "version": "v1",
+        "hooks": [
+            {
+                "name": "herdr-session-start",
+                "trigger": "SessionStart",
+                "action": {
+                    "type": "command",
+                    "command": session_command,
+                },
+                "timeout": 10,
+            },
+            {
+                "name": "herdr-stop",
+                "trigger": "Stop",
+                "action": {
+                    "type": "command",
+                    "command": session_command,
+                },
+                "timeout": 10,
+            }
+        ]
+    })
+}
+
+pub(crate) fn install_kiro() -> io::Result<KiroInstallPaths> {
+    let dir = kiro_dir()?;
+    if !dir.is_dir() {
+        return Err(io::Error::other(format!(
+            "kiro config directory not found at {}. install kiro cli first",
+            dir.display()
+        )));
+    }
+
+    // Kiro merges every `~/.kiro/hooks/*.json`, so herdr owns a dedicated
+    // config file and never edits the user's other hooks. The hook script and
+    // its config live side by side under `hooks/`.
+    let hooks_dir = dir.join("hooks");
+    fs::create_dir_all(&hooks_dir)?;
+
+    let hook_path = hooks_dir.join(KIRO_HOOK_INSTALL_NAME);
+    fs::write(&hook_path, KIRO_HOOK_ASSET)?;
+    make_executable(&hook_path)?;
+
+    let config_path = hooks_dir.join(KIRO_HOOK_CONFIG_INSTALL_NAME);
+    fs::write(
+        &config_path,
+        serde_json::to_string_pretty(&kiro_hook_config(&hook_path))?,
+    )?;
+
+    Ok(KiroInstallPaths {
+        hook_path,
+        config_path,
+    })
+}
+
+pub(crate) fn uninstall_kiro() -> io::Result<KiroUninstallResult> {
+    let hooks_dir = kiro_dir()?.join("hooks");
+    let hook_path = hooks_dir.join(KIRO_HOOK_INSTALL_NAME);
+    let config_path = hooks_dir.join(KIRO_HOOK_CONFIG_INSTALL_NAME);
+
+    // herdr owns both files outright, so removal is a straight delete.
+    let removed_config_file = remove_file_if_exists(&config_path)?;
+    let removed_hook_file = remove_file_if_exists(&hook_path)?;
+
+    Ok(KiroUninstallResult {
         hook_path,
         config_path,
         removed_hook_file,

@@ -225,6 +225,14 @@ pub fn plan(source: &str, agent: &str, session_ref: &AgentSessionRef) -> Option<
         ("herdr:grok", "grok", AgentSessionRefKind::Id) => {
             vec!["grok".into(), "--resume".into(), session_ref.value.clone()]
         }
+        ("herdr:kiro", "kiro", AgentSessionRefKind::Id) => {
+            vec![
+                "kiro-cli".into(),
+                "chat".into(),
+                "--resume-id".into(),
+                session_ref.value.clone(),
+            ]
+        }
         _ => return None,
     };
 
@@ -262,6 +270,7 @@ pub(crate) fn is_official_agent_source(source: &str, agent: &str) -> bool {
             | ("herdr:cursor", "cursor")
             | ("herdr:antigravity_cli", "agy")
             | ("herdr:grok", "grok")
+            | ("herdr:kiro", "kiro")
     )
 }
 
@@ -515,6 +524,20 @@ mod tests {
             .unwrap()
             .argv,
             vec!["grok", "--resume", "grok-session"]
+        );
+    }
+
+    #[test]
+    fn kiro_resume_launch() {
+        assert_eq!(
+            plan(
+                "herdr:kiro",
+                "kiro",
+                &AgentSessionRef::id("sess_abc123").unwrap()
+            )
+            .unwrap()
+            .argv,
+            vec!["kiro-cli", "chat", "--resume-id", "sess_abc123"]
         );
     }
 

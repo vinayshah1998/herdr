@@ -23,6 +23,10 @@ pub(crate) const GROK_CONFIG_DIR_ENV_VAR: &str = "GROK_CONFIG_DIR";
 /// The grok CLI's own config-home override (documented alongside
 /// `$GROK_HOME/config.toml` and `$GROK_HOME/auth.json`).
 pub(crate) const GROK_HOME_ENV_VAR: &str = "GROK_HOME";
+/// herdr-level override for the Kiro CLI config dir (primarily a test seam).
+/// The Kiro CLI has no documented config-home override env of its own, so this
+/// is the only override and it stays first and explicit.
+pub(crate) const KIRO_CONFIG_DIR_ENV_VAR: &str = "KIRO_CONFIG_DIR";
 pub(crate) const HERMES_HOME_ENV_VAR: &str = "HERMES_HOME";
 
 pub(crate) fn apply_pane_base_env(cmd: &mut CommandBuilder) {
@@ -192,6 +196,10 @@ pub(crate) fn grok_dir() -> io::Result<PathBuf> {
     // The grok CLI honors GROK_HOME as its config home (config.toml,
     // auth.json, hooks/); mirror it so hook installs land where grok looks.
     config_dir_from_env_or_home(GROK_HOME_ENV_VAR, &[".grok"])
+}
+
+pub(crate) fn kiro_dir() -> io::Result<PathBuf> {
+    config_dir_from_env_or_home(KIRO_CONFIG_DIR_ENV_VAR, &[".kiro"])
 }
 
 pub(crate) fn home_dir() -> io::Result<PathBuf> {

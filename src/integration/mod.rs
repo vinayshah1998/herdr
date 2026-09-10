@@ -295,6 +295,22 @@ const GROK_HOOK_ASSET: &str = if cfg!(windows) {
 };
 const GROK_INTEGRATION_VERSION: u32 = 1;
 
+const KIRO_HOOK_INSTALL_NAME: &str = if cfg!(windows) {
+    "herdr-agent-state.ps1"
+} else {
+    "herdr-agent-state.sh"
+};
+// herdr owns a dedicated hook JSON beside the user's other `~/.kiro/hooks/*.json`
+// files (Kiro merges them all), so the name must say what it is rather than reuse
+// a generic `herdr.json`.
+const KIRO_HOOK_CONFIG_INSTALL_NAME: &str = "herdr-agent-state.json";
+const KIRO_HOOK_ASSET: &str = if cfg!(windows) {
+    include_str!("assets/kiro/herdr-agent-state.ps1")
+} else {
+    include_str!("assets/kiro/herdr-agent-state.sh")
+};
+const KIRO_INTEGRATION_VERSION: u32 = 1;
+
 pub(crate) const INSTALL_WARNING_PREFIX: &str = "warning:";
 
 #[cfg(test)]
